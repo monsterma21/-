@@ -112,4 +112,4 @@ class VKParser:
             pass
         
         return {}
-```python
+
