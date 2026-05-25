@@ -289,6 +289,48 @@ print(f"Analyzed posts: {total}")
 print(f"Platforms: {len(result['platforms'])}")
 print(f"Topics: {len(result['topics'])}")
 ```
-
+# Результаты анализа соцсетей
+```python
+def print_conclusion(result: dict):
+    
+    print("\n" + "="*60)
+    print("Вывод по анализу соцсетей")
+    print("="*60)
+    
+    # 1. Рейтинг платформ
+    platform_engagement = {}
+    for m in result['metrics']:
+        if m['platform'] not in platform_engagement:
+            platform_engagement[m['platform']] = []
+        platform_engagement[m['platform']].append(m['engagement_rate'])
+    
+    print("Рейтинг платформ по вовлеченности:")
+    ratings = []
+    for platform, rates in platform_engagement.items():
+        avg = sum(rates) / len(rates)
+        ratings.append((platform, avg))
+    
+    # 2. Лучшие темы
+    print("Луучшие темы:")
+    for platform in set(m['platform'] for m in result['metrics']):
+        platform_metrics = [m for m in result['metrics'] if m['platform'] == platform]
+        best = max(platform_metrics, key=lambda x: x['engagement_rate'])
+        print(f"  • {platform}: {best['topic']} ({best['engagement_rate']:.1f}%)")
+    
+    # 3. Итоговые рекомендации
+    print("Рекомендации:")
+    for rec in result['recommendations']:
+        print(f"  ✓ {rec['reason']}")
+    
+    # 4. Главный вывод
+    best_platform = ratings[0][0]
+    best_topic = max(result['metrics'], key=lambda x: x['engagement_rate'])
+    
+    print("\n" + "="*60)
+    print(f"Вывод:")
+    print(f"Лучше всего публиковать контент на тему '{best_topic['topic']}'")
+    print(f" в соцсети {best_platform} - вовлеченность {best_topic['engagement_rate']:.1f}%")
+    print("="*60 + "\n")
+    ```
 
 
