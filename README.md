@@ -19,98 +19,206 @@
 - Владельцы небольших брендов и медиа 
 - Блогеры и инфлюенсеры
 
+# Импорт библиотек
+```python
+import asyncio
+import json
+import os
+import random
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+try:
+    import httpx
+    HAS_HTTPX = True
+except ImportError:
+    HAS_HTTPX = False
+
+VK_TOKEN = os.getenv("VK_ACCESS_TOKEN", "")
+VK_GROUP = os.getenv("VK_GROUP_ID", "")
+TG_TOKEN = os.getenv("TG_BOT_TOKEN", "")
+TG_CHANNEL = os.getenv("TG_CHANNEL_ID", "")
+YT_KEY = os.getenv("YT_API_KEY", "")
+YT_CHANNEL = os.getenv("YT_CHANNEL_ID", "")
+```
+
+# Модели данных
+
+```python
+@dataclass
+class Post:
+    id: str
+    platform: str
+    text: str
+    topic: str
+    published_at: datetime
+    likes: int = 0
+    comments: int = 0
+    shares: int = 0
+    views: int = 0
+    url: str = ""
+
+@dataclass
+class EngagementMetrics:
+    platform: str
+    topic: str
+    total_posts: int = 0
+    total_likes: int = 0
+    total_comments: int = 0
+    total_shares: int = 0
+    total_views: int = 0
+    avg_likes: float = 0.0
+    avg_comments: float = 0.0
+    avg_shares: float = 0.0
+    avg_views: float = 0.0
+    engagement_rate: float = 0.0
+
+    @property
+    def avg_engagement_per_post(self) -> float:
+        return self.avg_likes + self.avg_comments + self.avg_shares
+
+    def to_dict(self) -> dict:
+        return {
+            "platform": self.platform,
+            "topic": self.topic,
+            "total_posts": self.total_posts,
+            "total_likes": self.total_likes,
+            "total_comments": self.total_comments,
+            "total_shares": self.total_shares,
+            "total_views": self.total_views,
+            "avg_likes": round(self.avg_likes, 1),
+            "avg_comments": round(self.avg_comments, 1),
+            "avg_shares": round(self.avg_shares, 1),
+            "avg_views": round(self.avg_views, 1),
+            "engagement_rate": round(self.engagement_rate, 2),
+            "avg_engagement_per_post": round(self.avg_engagement_per_post, 1),
+        }
+```
+# Парсеры
+```python
+class BaseParser(ABC):
+    platform: str
+
+    @abstractmethod
+    async def fetch_posts(self, topic: str, limit: int = 10) -> list[Post]:
+        ...
+
+def _mock_posts(topic: str, limit: int, platform: str) -> list[Post]:
+    posts = []
+    for i in range(limit):
+        posts.append(Post(
+            id=f"{platform.lower()}_{topic[:5]}_{i}",
+            platform=platform,
+            text=f"Mock post about {topic} on {platform} #{i}",
+            topic=topic,
+            published_at=datetime.now() - timedelta(hours=i),
+            likes=random.randint(5, 500),
+            comments=random.randint(0, 100),
+            shares=random.randint(0, 80),
+            views=random.randint(100, 10000),
+        ))
+    return posts
+
+
+```
 # Парсинг VK
 
 ```python
-import time
-from datetime import datetime, timedelta
-import pandas as pd
+class VKParser(BaseParser):
+    platform = "VK"
 
-class VKParser:
-    
-    def __init__(self, access_token):
-        self.access_token = access_token
-        self.vk_api = None
-        
-        try:
-            import vk_api
-            self.vk_api = vk_api
-            print(" VK API подключён")
-        except ImportError:
-            print(" Установите vk-api: pip install vk-api")
-    
-    def search_posts(self, query, days_back=7, limit=10):
-        """
-        Поиск постов по ключевому слову
-        
-        Args:
-            query: поисковый запрос
-            days_back: за сколько дней
-            limit: сколько постов
-        
-        Returns:
-            DataFrame с постами
-        """
-        if not self.vk_api:
-            return pd.DataFrame()
-        
-        # Подключаемся
-        vk_session = self.vk_api.VkApi(token=self.access_token)
-        vk = vk_session.get_api()
-        
-        # Дата начала поиска
-        start_date = int((datetime.now() - timedelta(days=days_back)).timestamp())
-        
+    async def fetch_posts(self, topic: str, limit: int = 10) -> list[Post]:
+        if not VK_TOKEN or not HAS_HTTPX:
+            return _mock_posts(topic, limit, self.platform)
+        async with httpx.AsyncClient() as client:
+            params = {"access_token": VK_TOKEN, "v": "5.199", "query": topic, "count": limit}
+            if VK_GROUP:
+                params["owner_id"] = f"-{VK_GROUP}"
+            resp = await client.post("https://api.vk.com/method/wall.search", params=params)
+            data = resp.json()
         posts = []
-        
-        try:
-            response = vk.wall.search(
-                q=query,
-                count=limit,
-                start_time=start_date,
-                v='5.131'
+        for item in data.get("response", {}).get("items", []):
+            posts.append(Post(
+                id=str(item.get("id")), platform=self.platform,
+                text=str(item.get("text", ""))[:200], topic=topic,
+                published_at=datetime.fromtimestamp(item.get("date", 0)),
+                likes=item.get("likes", {}).get("count", 0),
+                comments=item.get("comments", {}).get("count", 0),
+                shares=item.get("reposts", {}).get("count", 0),
+                views=item.get("views", {}).get("count", 0),
+                url=f"https://vk.com/wall{item.get('owner_id')}_{item.get('id')}",
+            ))
+        return posts or _mock_posts(topic, limit, self.platform)
+```
+# Парсинг telegram
+```python
+class TelegramParser(BaseParser):
+    platform = "Telegram"
+
+    async def fetch_posts(self, topic: str, limit: int = 10) -> list[Post]:
+        if not TG_TOKEN or not HAS_HTTPX:
+            return _mock_posts(topic, limit, self.platform)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates", params={"timeout": 0}
             )
-            
-            for item in response['items']:
-                post = {
-                    'id': item['id'],
-                    'date': datetime.fromtimestamp(item['date']).strftime('%Y-%m-%d'),
-                    'text': item.get('text', '')[:200],
-                    'likes': item['likes']['count'],
-                    'comments': item['comments']['count'],
-                    'reposts': item['reposts']['count'],
-                    'views': item.get('views', {}).get('count', 0),
-                    'url': f"https://vk.com/wall{item['owner_id']}_{item['id']}"
-                }
-                posts.append(post)
-            
-            print(f" Найдено постов: {len(posts)}")
-            
-        except Exception as e:
-            print(f"Ошибка: {e}")
-        
-        return pd.DataFrame(posts)
-    
-    def get_post_stats(self, post_id, owner_id):
+            data = resp.json()
+        posts = []
+        for update in data.get("result", []):
+            msg = update.get("channel_post") or update.get("message", {})
+            text = msg.get("text") or msg.get("caption", "")
+            if topic.lower() not in (text or "").lower():
+                continue
+            posts.append(Post(
+                id=str(update.get("update_id")), platform=self.platform,
+                text=(text or "")[:200], topic=topic,
+                published_at=datetime.fromtimestamp(msg.get("date", 0)),
+                views=msg.get("views", 0),
+                url=f"https://t.me/{TG_CHANNEL.strip('@')}/{msg.get('message_id')}" if TG_CHANNEL else "",
+            ))
+            if len(posts) >= limit:
+                break
+        return posts or _mock_posts(topic, limit, self.platform)
+```
 
-        if not self.vk_api:
-            return {}
-        
-        vk_session = self.vk_api.VkApi(token=self.access_token)
-        vk = vk_session.get_api()
-        
-        try:
-            response = vk.wall.getById(posts=f"{owner_id}_{post_id}")
-            if response:
-                item = response[0]
-                return {
-                    'likes': item['likes']['count'],
-                    'comments': item['comments']['count'],
-                    'reposts': item['reposts']['count'],
-                    'views': item.get('views', {}).get('count', 0)
-                }
-        except:
-            pass
-        
-        return {}
+# Парсинг youtube
+```python
+class YouTubeParser(BaseParser):
+    platform = "YouTube"
 
+    async def fetch_posts(self, topic: str, limit: int = 10) -> list[Post]:
+        if not YT_KEY or not HAS_HTTPX:
+            return _mock_posts(topic, limit, self.platform)
+        async with httpx.AsyncClient() as client:
+            params = {"part": "snippet", "q": topic, "type": "video",
+                       "maxResults": limit, "key": YT_KEY}
+            if YT_CHANNEL:
+                params["channelId"] = YT_CHANNEL
+            search = await client.get("https://www.googleapis.com/youtube/v3/search", params=params)
+            video_ids = [item["id"]["videoId"] for item in search.json().get("items", [])]
+            if not video_ids:
+                return _mock_posts(topic, limit, self.platform)
+            stats = await client.get(
+                "https://www.googleapis.com/youtube/v3/videos",
+                params={"part": "statistics,snippet", "id": ",".join(video_ids), "key": YT_KEY},
+            )
+            items = stats.json().get("items", [])
+        posts = []
+        for item in items:
+            snippet = item.get("snippet", {})
+            stat = item.get("statistics", {})
+            posts.append(Post(
+                id=item.get("id", ""), platform=self.platform,
+                text=snippet.get("title", "")[:200], topic=topic,
+                published_at=datetime.fromisoformat(
+                    snippet.get("publishedAt", "2024-01-01T00:00:00Z").replace("Z", "+00:00")
+                ),
+                likes=int(stat.get("likeCount", 0)),
+                comments=int(stat.get("commentCount", 0)),
+                views=int(stat.get("viewCount", 0)),
+                url=f"https://youtu.be/{item.get('id', '')}",
+            ))
+        return posts
+```
