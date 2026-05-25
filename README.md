@@ -222,3 +222,73 @@ class YouTubeParser(BaseParser):
             ))
         return posts
 ```
+# Аналитика
+```python
+class AnalyticsEngine:
+
+    async def compute(self, posts: list[Post]) -> dict:
+        grouped = defaultdict(list)
+        for post in posts:
+            grouped[(post.platform, post.topic)].append(post)
+
+        metrics = []
+        for (platform, topic), group in grouped.items():
+            n = len(group)
+            tl = sum(p.likes for p in group)
+            tc = sum(p.comments for p in group)
+            ts = sum(p.shares for p in group)
+            tv = sum(p.views for p in group)
+            ti = tl + tc + ts
+            er = ti / tv * 100 if tv > 0 else 0.0
+            metrics.append(EngagementMetrics(
+                platform=platform, topic=topic, total_posts=n,
+                total_likes=tl, total_comments=tc, total_shares=ts, total_views=tv,
+                avg_likes=tl / n, avg_comments=tc / n,
+                avg_shares=ts / n, avg_views=tv / n,
+                engagement_rate=er,
+            ).to_dict())
+
+        topics = sorted({m["topic"] for m in metrics})
+        recommendations = []
+        for topic in topics:
+            tm = [m for m in metrics if m["topic"] == topic]
+            best = max(tm, key=lambda m: m["avg_engagement_per_post"])
+            recommendations.append({
+                "topic": topic,
+                "recommended_platform": best["platform"],
+                "avg_engagement": best["avg_engagement_per_post"],
+                "reason": f"Topic '{topic}' has best engagement on {best['platform']}: avg {best['avg_engagement_per_post']:.1f} reactions per post",
+            })
+
+        return {
+            "metrics": metrics,
+            "topics": topics,
+            "platforms": sorted({m["platform"] for m in metrics}),
+            "recommendations": recommendations,
+        }
+
+    @staticmethod
+    def mock_posts(topics: list[str], platforms: list[str], pp: int = 5) -> list[Post]:
+        posts = []
+        for platform in platforms:
+            for topic in topics:
+                posts.extend(_mock_posts(topic, pp, platform))
+        return posts
+
+engine = AnalyticsEngine()
+
+TOPICS = ["tech", "design", "marketing"]
+PLATFORMS = ["VK", "Telegram", "YouTube"]
+POSTS_PER_PLATFORM = 5
+
+posts = engine.mock_posts(TOPICS, PLATFORMS, POSTS_PER_PLATFORM)
+result = await engine.compute(posts)
+
+total = sum(m['total_posts'] for m in result['metrics'])
+print(f"Analyzed posts: {total}")
+print(f"Platforms: {len(result['platforms'])}")
+print(f"Topics: {len(result['topics'])}")
+```
+
+
+
