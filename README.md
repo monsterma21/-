@@ -308,11 +308,10 @@ def print_conclusion(result: dict):
         best_platform = "нет данных"
     best_topic = max(result['metrics'], key=lambda x: x['engagement_rate'])
     
-    print("\n" + "="*60)
+
     print("Вывод:")
     print(f"Лучше всего публиковать контент на тему '{best_topic['topic']}'")
     print(f" в соцсети {best_platform} - вовлеченность {best_topic['engagement_rate']:.1f}%")
-    print("="*60 + "\n")
 
 
 TOPICS = ["спорт", "музыка", "еда", "шоу", "юмор", "образование", "путешествия", "lifestyle", "интервью", "игры", "кино"]
