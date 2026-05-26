@@ -315,12 +315,12 @@ def print_conclusion(result: dict):
     for platform in set(m['platform'] for m in result['metrics']):
         platform_metrics = [m for m in result['metrics'] if m['platform'] == platform]
         best = max(platform_metrics, key=lambda x: x['engagement_rate'])
-        print(f"  • {platform}: {best['topic']} ({best['engagement_rate']:.1f}%)")
+        print(f"  {platform}: {best['topic']} ({best['engagement_rate']:.1f}%)")
     
     # 3. Итоговые рекомендации
     print("Рекомендации:")
     for rec in result['recommendations']:
-        print(f"  ✓ {rec['reason']}")
+        print(f"  {rec['reason']}")
     
     # 4. Главный вывод
     best_platform = ratings[0][0]
