@@ -311,7 +311,7 @@ def print_conclusion(result: dict):
         ratings.append((platform, avg))
     
     # 2. Лучшие темы
-    print("Луучшие темы:")
+    print("Лучшие темы:")
     for platform in set(m['platform'] for m in result['metrics']):
         platform_metrics = [m for m in result['metrics'] if m['platform'] == platform]
         best = max(platform_metrics, key=lambda x: x['engagement_rate'])
