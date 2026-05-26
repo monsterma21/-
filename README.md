@@ -293,9 +293,8 @@ print(f"Topics: {len(result['topics'])}")
 ```python
 def print_conclusion(result: dict):
     
-    print("\n" + "="*60)
+
     print("Вывод по анализу соцсетей")
-    print("="*60)
     
     # 1. Рейтинг платформ
     platform_engagement = {}
@@ -326,11 +325,9 @@ def print_conclusion(result: dict):
     best_platform = ratings[0][0]
     best_topic = max(result['metrics'], key=lambda x: x['engagement_rate'])
     
-    print("\n" + "="*60)
     print(f"Вывод:")
     print(f"Лучше всего публиковать контент на тему '{best_topic['topic']}'")
     print(f" в соцсети {best_platform} - вовлеченность {best_topic['engagement_rate']:.1f}%")
-    print("="*60 + "\n")
     ```
 
 
