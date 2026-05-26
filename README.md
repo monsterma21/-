@@ -30,18 +30,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-try:
-    import httpx
-    HAS_HTTPX = True
-except ImportError:
-    HAS_HTTPX = False
 
-VK_TOKEN = os.getenv("VK_ACCESS_TOKEN", "")
-VK_GROUP = os.getenv("VK_GROUP_ID", "")
-TG_TOKEN = os.getenv("TG_BOT_TOKEN", "")
-TG_CHANNEL = os.getenv("TG_CHANNEL_ID", "")
-YT_KEY = os.getenv("YT_API_KEY", "")
-YT_CHANNEL = os.getenv("YT_CHANNEL_ID", "")
+VK_TOKEN = os.getenv("")
+TG_TOKEN = os.getenv("")
+TG_CHANNEL = os.getenv("")
+YT_KEY = os.getenv("")
 ```
 
 # Модели данных
@@ -59,6 +52,7 @@ class Post:
     shares: int = 0
     views: int = 0
     url: str = ""
+
 
 @dataclass
 class EngagementMetrics:
@@ -104,6 +98,7 @@ class BaseParser(ABC):
     @abstractmethod
     async def fetch_posts(self, topic: str, limit: int = 10) -> list[Post]:
         ...
+
 
 def _mock_posts(topic: str, limit: int, platform: str) -> list[Post]:
     posts = []
@@ -275,27 +270,11 @@ class AnalyticsEngine:
                 posts.extend(_mock_posts(topic, pp, platform))
         return posts
 
-engine = AnalyticsEngine()
 
-TOPICS = ["tech", "design", "marketing"]
-PLATFORMS = ["VK", "Telegram", "YouTube"]
-POSTS_PER_PLATFORM = 5
-
-posts = engine.mock_posts(TOPICS, PLATFORMS, POSTS_PER_PLATFORM)
-result = await engine.compute(posts)
-
-total = sum(m['total_posts'] for m in result['metrics'])
-print(f"Analyzed posts: {total}")
-print(f"Platforms: {len(result['platforms'])}")
-print(f"Topics: {len(result['topics'])}")
-```
-# Результаты анализа соцсетей
-```python
 def print_conclusion(result: dict):
-    
 
     print("Вывод по анализу соцсетей")
-    
+
     # 1. Рейтинг платформ
     platform_engagement = {}
     for m in result['metrics']:
@@ -308,9 +287,10 @@ def print_conclusion(result: dict):
     for platform, rates in platform_engagement.items():
         avg = sum(rates) / len(rates)
         ratings.append((platform, avg))
-    
-    # 2. Лучшие темы
-    print("Лучшие темы:")
+        print(f"  {platform}: {avg:.2f}%")
+
+    # 2. Лучшие темы для каждой платформы
+    print("Лучшие темы для каждой платформы:")
     for platform in set(m['platform'] for m in result['metrics']):
         platform_metrics = [m for m in result['metrics'] if m['platform'] == platform]
         best = max(platform_metrics, key=lambda x: x['engagement_rate'])
@@ -322,12 +302,35 @@ def print_conclusion(result: dict):
         print(f"  {rec['reason']}")
     
     # 4. Главный вывод
-    best_platform = ratings[0][0]
+    if ratings:
+        best_platform = ratings[0][0]
+    else:
+        best_platform = "нет данных"
     best_topic = max(result['metrics'], key=lambda x: x['engagement_rate'])
     
-    print(f"Вывод:")
+    print("\n" + "="*60)
+    print("Вывод:")
     print(f"Лучше всего публиковать контент на тему '{best_topic['topic']}'")
     print(f" в соцсети {best_platform} - вовлеченность {best_topic['engagement_rate']:.1f}%")
+    print("="*60 + "\n")
+
+
+TOPICS = ["спорт", "музыка", "еда", "шоу", "юмор", "образование", "путешествия", "lifestyle", "интервью", "игры", "кино"]
+PLATFORMS = ["VK", "Telegram", "YouTube"]
+POSTS_PER_PLATFORM = 5
+
+engine = AnalyticsEngine()
+
+# Генерируем тестовые посты 
+posts = engine.mock_posts(TOPICS, PLATFORMS, POSTS_PER_PLATFORM)
+result = await engine.compute(posts)
+
+total = sum(m['total_posts'] for m in result['metrics'])
+print(f"Analyzed posts: {total}")
+print(f"Platforms: {len(result['platforms'])}")
+print(f"Topics: {len(result['topics'])}")
+
+print_conclusion(result)
     ```
 
 
